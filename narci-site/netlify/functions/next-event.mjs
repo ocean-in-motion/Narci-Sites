@@ -19,9 +19,23 @@ const TAG = /(^|\s)#event(?![\w])/i;   // manual override: always treat as an ev
 const LOOK_BACK_POSTS = 12;            // how many recent posts to consider
 const MAX_AGE_DAYS = 75;               // ignore posts older than this (flyers go up a few weeks ahead)
 const HAPPENING_GRACE_H = 5;           // keep showing an event this long after it starts if no end time
+const MAX_NEW_READS = 4;               // new posts Claude reads per visit (keeps us under Netlify's 10s limit)
+const READ_TIMEOUT_MS = 7500;          // give up on a read after this; it retries next visit
+
+async function readSaved(post, store) {
+  if (!store) return undefined;
+  try { const v = await store.get(`post-${post.id}`, { type: "json" }); return v ? v.info : undefined; } catch (e) { return undefined; }
+}
+function withTimeout(promise, ms) {
+  return Promise.race([promise, new Promise((r) => setTimeout(() => r(null), ms))]);
+}
 
 export default async () => {
-  const { FB_TOKEN, IG_USER_ID, ANTHROPIC_API_KEY } = process.env;
+  // trim: pasted values often carry a stray space, newline or quotes
+  const clean = (v) => (v || "").trim().replace(/^["']|["']$/g, "");
+  const FB_TOKEN = clean(process.env.FB_TOKEN), IG_USER_ID = clean(process.env.IG_USER_ID);
+  const ANTHROPIC_API_KEY = clean(process.env.ANTHROPIC_API_KEY);
+  process.env.ANTHROPIC_API_KEY = ANTHROPIC_API_KEY;
   const target = process.env.IG_TARGET || "dj_narci";
   const ver = process.env.GRAPH_VER || "v27.0";
   if (!FB_TOKEN || !IG_USER_ID) return json({ error: "Missing FB_TOKEN or IG_USER_ID" }, 500, false);
@@ -38,7 +52,9 @@ export default async () => {
     if (!res.ok || body.error) {
       // Common causes: token expired, or the target account is personal or private.
       console.error("Instagram error:", JSON.stringify(body.error || body));
-      return json({ error: "Instagram request failed" }, 502, false);
+      // Meta's own message (never contains the token) so the problem is visible right here
+      const e = body.error || {};
+      return json({ error: "Instagram request failed", meta: { message: e.message, type: e.type, code: e.code, subcode: e.error_subcode } }, 502, false);
     }
     posts = body.business_discovery?.media?.data || [];
   } catch (err) {
@@ -58,9 +74,20 @@ export default async () => {
     return json({ event: p ? toEvent(p, null) : null });
   }
 
-  // ---- Claude reads each candidate once (in parallel), results are saved per post ----
+  // ---- Claude reads each candidate once, results are saved per post ----
+  // Netlify's free plan stops a function after ~10s, so each visit reads at most a few
+  // new posts (in parallel, with a time limit). The rest get read on the next visits.
   const store = openStore();
-  const analysed = await Promise.all(candidates.map(async (p) => ({ post: p, info: await analysePost(p, store) })));
+  const saved = await Promise.all(candidates.map((p) => readSaved(p, store)));
+  let fresh = 0, pending = 0;
+  const analysed = await Promise.all(candidates.map(async (p, i) => {
+    if (saved[i] !== undefined) return { post: p, info: saved[i] };
+    if (fresh >= MAX_NEW_READS) { pending++; return { post: p, info: null }; }
+    fresh++;
+    const info = await withTimeout(analysePost(p, store), READ_TIMEOUT_MS);
+    if (info === null) pending++;
+    return { post: p, info };
+  }));
 
   const now = Date.now();
   const upcoming = analysed
@@ -71,7 +98,9 @@ export default async () => {
     })
     .sort((a, b) => new Date(a.info.startISO) - new Date(b.info.startISO));   // soonest first
 
-  if (upcoming.length) return json({ event: toEvent(upcoming[0].post, upcoming[0].info) });
+  if (upcoming.length) return json({ event: toEvent(upcoming[0].post, upcoming[0].info) }, 200, pending === 0);
+  // Still reading posts and nothing found yet: tell the page to try again shortly (not cached).
+  if (pending) return json({ pending }, 503, false);
 
   // A #event post Claude couldn't date: still show it with its caption.
   const tagged = analysed.find(({ post }) => TAG.test(post.caption || ""));
