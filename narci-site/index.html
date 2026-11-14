@@ -1,0 +1,1277 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Narci</title>
+<meta name="description" content="Narci: Afrobeats, dancehall, soca and hip-hop. Mixes, events and booking.">
+<meta name="theme-color" content="#000000">
+<link rel="icon" type="image/png" href="assets/favicon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@600;800;900&family=Outfit:wght@200;300;400;500;600&display=swap" rel="stylesheet">
+<style>
+/* =========================================================
+   TOKENS
+   ========================================================= */
+:root{
+  --black:#000;
+  --char:#0a0907;          /* warm off-black for raised surfaces */
+  --line:rgba(224,165,38,.18);
+  --gold-hi:#ffe39a;
+  --gold:#e0a526;
+  --gold-deep:#8c5a0a;
+  --cream:#f6ead0;         /* body text, warm so it sits with the gold */
+  --muted:#a89a7c;
+  --pink:#ff2d95;
+  --green:#3dff8f;
+  --blue:#29c8ff;
+  --bass:0;                /* 0..1, written by the audio analyser */
+  --display:"Big Shoulders Display", Impact, sans-serif;
+  --body:"Outfit", system-ui, sans-serif;
+  --gold-grad:linear-gradient(170deg,var(--gold-hi) 0%,var(--gold) 45%,var(--gold-deep) 100%);
+  --safe-b:env(safe-area-inset-bottom,0px);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{background:var(--black);color:var(--cream);font-family:var(--body);font-size:17px;line-height:1.55;-webkit-font-smoothing:antialiased;scroll-behavior:smooth}
+body{min-height:100vh;overflow-x:hidden}
+img{display:block;max-width:100%}
+a{color:inherit}
+button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
+:focus-visible{outline:2px solid var(--gold-hi);outline-offset:3px;border-radius:6px}
+[hidden]{display:none!important}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+
+/* =========================================================
+   ATMOSPHERE: film grain
+   ========================================================= */
+.grain{position:fixed;inset:0;z-index:50;pointer-events:none;opacity:.05;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='220' height='220'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E")}
+
+
+/* =========================================================
+   BACKGROUND: organic gradient blobs + light leaks
+   Blobs slowly change shape and drift at their own depth as you scroll.
+   Light leaks bleed in from the edges and fade in and out with scrolling.
+   ========================================================= */
+.bg{position:fixed;inset:0;z-index:-1;pointer-events:none;overflow:hidden;--sy:0;--sw:0;--bass:0}
+.blob{position:absolute;width:var(--s);height:var(--s);top:var(--t);left:var(--l);
+  /* two offset soft gradients make an organic, already-blurred blob (no filter needed) */
+  background:
+    radial-gradient(closest-side at 38% 40%,var(--c1),color-mix(in srgb,var(--c1) 45%,transparent) 45%,transparent 100%),
+    radial-gradient(closest-side at 64% 62%,var(--c2),color-mix(in srgb,var(--c2) 40%,transparent) 42%,transparent 100%);
+  opacity:.3;border-radius:50%;
+  transform:translate3d(0,calc(var(--sy)*var(--d)*-1px),0) rotate(calc(var(--sy)*var(--r,.02)*1deg));
+  animation:drift var(--m,22s) ease-in-out infinite alternate;will-change:transform}
+/* uses the separate rotate/scale properties so it layers on top of the scroll transform */
+@keyframes drift{from{rotate:0deg;scale:1}to{rotate:28deg;scale:1.14}}
+/* phones: blobs move with scrolling only, which keeps scrolling smooth */
+@media (max-width:979px){.blob{animation:none}}
+.leak{position:absolute;opacity:var(--o,0);will-change:opacity,transform}
+.leak.l{left:-20vw;top:-10vh;width:70vw;height:120vh;
+  background:radial-gradient(ellipse 55% 50% at 20% 45%,rgba(255,150,50,.75),rgba(255,70,110,.35) 45%,transparent 75%);
+  transform:translate3d(calc(var(--sw)*6vw),0,0)}
+.leak.r{right:-25vw;top:20vh;width:75vw;height:110vh;
+  background:radial-gradient(ellipse 55% 55% at 78% 50%,rgba(255,215,120,.6),rgba(224,165,38,.3) 40%,transparent 75%);
+  transform:translate3d(calc(var(--sw)*-5vw),0,0)}
+.leak.band{left:-30vw;top:-20vh;width:160vw;height:140vh;
+  background:linear-gradient(115deg,transparent 32%,rgba(255,190,110,.32) 42%,rgba(255,45,149,.26) 50%,rgba(140,80,255,.14) 57%,transparent 66%);
+  transform:translate3d(calc(var(--sw)*22vw),0,0)}
+.leak.b{left:10vw;bottom:-45vh;width:90vw;height:90vh;
+  background:radial-gradient(ellipse 60% 50% at 50% 60%,rgba(41,200,255,.45),rgba(61,255,143,.18) 45%,transparent 75%)}
+
+/* =========================================================
+   SPLASH (audio needs a tap before it can play)
+   ========================================================= */
+.splash{position:fixed;inset:0;z-index:40;display:grid;place-items:center;text-align:center;padding:24px;
+  background:radial-gradient(ellipse at 50% 60%,#1c1306,#000 65%);transition:opacity .8s ease,visibility .8s}
+.splash.gone{opacity:0;visibility:hidden}
+.splash-inner{display:grid;justify-items:center;gap:26px;max-width:560px}
+.splash-logo{position:relative;width:min(78vw,520px);filter:drop-shadow(0 0 4px rgba(255,227,154,.55)) drop-shadow(0 0 20px rgba(224,165,38,.5))}
+/* breathing glow behind the logo: opacity only, so it stays smooth on phones */
+.splash-glow{position:relative;display:grid;place-items:center}
+.splash-glow::before{content:"";position:absolute;inset:-30% -10%;background:radial-gradient(ellipse,rgba(224,165,38,.35),transparent 65%);animation:breathe 3.6s ease-in-out infinite;will-change:opacity}
+@keyframes breathe{0%,100%{opacity:.45}50%{opacity:1}}
+.splash p{color:var(--muted);font-weight:300;max-width:34ch}
+.needle-btn{position:relative;display:inline-flex;align-items:center;gap:14px;padding:16px 30px 16px 18px;border-radius:999px;
+  background:var(--gold-grad);color:#1b1102;font-weight:600;font-size:1.05rem;letter-spacing:.01em;
+  box-shadow:0 0 0 1px rgba(255,227,154,.5) inset,0 14px 50px -10px rgba(224,165,38,.6);overflow:hidden;isolation:isolate}
+.needle-btn::after{content:"";position:absolute;inset:0;z-index:-1;background:linear-gradient(110deg,transparent 30%,rgba(255,255,255,.55) 50%,transparent 70%);transform:translateX(-120%);animation:sheen 3.2s ease-in-out infinite}
+@keyframes sheen{60%,100%{transform:translateX(120%)}}
+.needle-btn .disc{width:34px;height:34px;border-radius:50%;background:repeating-radial-gradient(circle,#111 0 1px,#222 1.5px 2.5px);display:grid;place-items:center;animation:spin 1.8s linear infinite}
+.needle-btn .disc::after{content:"";width:12px;height:12px;border-radius:50%;background:var(--gold)}
+.quiet-btn{color:var(--muted);font-size:.9rem;text-decoration:underline;text-underline-offset:4px}
+
+/* =========================================================
+   LAYOUT
+   ========================================================= */
+.app{position:relative;overflow-x:clip}   /* the growing record never widens the page */
+.deck-col{display:grid;justify-items:center;gap:22px;padding:calc(28px + env(safe-area-inset-top,0px)) 20px 10px}
+.content{padding:8px 20px calc(130px + var(--safe-b));max-width:620px;margin:0 auto}
+@media (min-width:980px){
+  .app{display:grid;grid-template-columns:minmax(440px,47vw) 1fr;max-width:1760px;margin:0 auto}
+  .deck-col{position:sticky;top:0;height:100vh;align-content:center;padding:40px 28px}
+  .content{padding:14vh 6vw 14vh 2vw;margin:0;max-width:700px}
+}
+
+/* =========================================================
+   TURNTABLE: the one loud thing on the page
+   Geometry lives in a 1000 x 780 box (the SVG viewBox) so the
+   platter, tonearm and controls always line up.
+   ========================================================= */
+/* --deck is the record's diameter */
+.deck-slot{--deck:min(72vw,50vh,420px);width:var(--deck);height:var(--deck)}
+@media (min-width:980px){.deck-slot{--deck:min(32vw,62vh,540px)}}
+.deck{position:relative;width:100%;height:100%}
+@media (max-width:979px){.deck{will-change:transform}}
+.platter-wrap{position:absolute;left:0;top:0;width:var(--deck);height:var(--deck)}
+/* neon spikes around the record, driven by the music */
+.viz{position:absolute;inset:-17%;width:134%;height:134%;pointer-events:none}
+/* spinning part: gold platter rim with strobe dots, record on top */
+.platter{position:absolute;inset:0;border-radius:50%;
+  background:conic-gradient(from 20deg,#5e4d2e,#ecd59a 9%,#7a6337 21%,#f6e7b8 34%,#6b5a3a 49%,#dcbf7a 63%,#5a4a2c 77%,#efd99f 89%,#5e4d2e);
+  box-shadow:0 0 0 1.5px #000,0 24px 60px -10px rgba(0,0,0,.9),inset 0 0 0 1px rgba(255,240,200,.35)}
+/* gold halo that pulses with the bass (opacity only) */
+.platter-wrap::before{content:"";position:absolute;inset:-6%;border-radius:50%;pointer-events:none;
+  background:radial-gradient(circle closest-side,transparent 80%,rgba(224,165,38,.55) 88%,transparent 100%);
+  opacity:calc(.35 + var(--bass) * .65);will-change:opacity}
+.strobe{position:absolute;inset:0;border-radius:50%;
+  background:repeating-conic-gradient(rgba(25,20,12,.9) 0 1deg,transparent 1deg 3.6deg);
+  -webkit-mask:radial-gradient(circle closest-side,transparent 95.4%,#000 96%,#000 98.6%,transparent 99.2%);
+          mask:radial-gradient(circle closest-side,transparent 95.4%,#000 96%,#000 98.6%,transparent 99.2%)}
+.vinyl{position:absolute;inset:3.4%;border-radius:50%;touch-action:none;cursor:grab;will-change:transform;
+  background:
+    radial-gradient(circle closest-side,transparent 33%,#0b0b0b 33.4%,#151515 37.5%,rgba(0,0,0,0) 38%),
+    radial-gradient(circle closest-side,transparent 55%,rgba(255,255,255,.045) 55.5%,rgba(0,0,0,.55) 56.2%,transparent 56.8%),
+    radial-gradient(circle closest-side,transparent 67%,rgba(255,255,255,.045) 67.5%,rgba(0,0,0,.55) 68.2%,transparent 68.8%),
+    radial-gradient(circle closest-side,transparent 80%,rgba(255,255,255,.045) 80.5%,rgba(0,0,0,.55) 81.2%,transparent 81.8%),
+    radial-gradient(circle closest-side,transparent 96.2%,#1d1d1d 97.2%,#050505 98.8%,#2b2b2b 99.6%,transparent 100%),
+    repeating-radial-gradient(circle closest-side,#070707 0 .8px,#121212 1.1px 1.7px);
+  box-shadow:0 0 0 1px #000,0 3px 8px rgba(0,0,0,.7)}
+.vinyl:active{cursor:grabbing}
+.vinyl:focus-visible{outline-offset:6px;border-radius:50%}
+.label{position:absolute;inset:33.5%;border-radius:50%;display:grid;place-items:center;overflow:hidden;
+  background:radial-gradient(circle at 35% 30%,#231808,#090603 72%);box-shadow:0 0 0 1px #000,inset 0 0 0 2px rgba(224,165,38,.5)}
+.label .print{position:absolute;inset:0;width:100%;height:100%}
+.label img{width:52%;filter:drop-shadow(0 1px 3px rgba(0,0,0,.8))}
+/* still parts on top of the spinning record */
+.shine{position:absolute;inset:3.4%;border-radius:50%;pointer-events:none;mix-blend-mode:screen;
+  background:conic-gradient(from 205deg,transparent 0deg,rgba(255,255,255,.05) 14deg,rgba(255,250,235,.16) 28deg,rgba(255,255,255,.05) 42deg,transparent 58deg,transparent 180deg,rgba(255,255,255,.04) 194deg,rgba(255,250,235,.12) 208deg,rgba(255,255,255,.04) 222deg,transparent 238deg);
+  -webkit-mask:radial-gradient(circle closest-side,transparent 34%,#000 38%);mask:radial-gradient(circle closest-side,transparent 34%,#000 38%)}
+.ripple{position:absolute;inset:3.4%;border-radius:50%;pointer-events:none;border:2px solid var(--gold-hi);opacity:0}
+.ripple.go{animation:ripple .7s ease-out}
+@keyframes ripple{from{opacity:.9;transform:scale(.4)}to{opacity:0;transform:scale(1.15)}}
+/* hardware: tonearm, pitch fader, meters */
+.hint{font-size:.85rem;color:var(--muted);text-align:center;min-height:1.4em;transition:opacity .4s}
+@media (min-width:980px){.hint{margin-top:clamp(30px,5vh,56px)}}
+
+/* phones: the record scrolls up until half of it pokes out of the top, then stays there
+   while everything scrolls underneath it */
+@media (max-width:979px){
+  .deck-col{display:contents}
+  .deck-slot{position:sticky;top:calc(var(--deck) * -.5);z-index:20;margin:calc(40px + env(safe-area-inset-top,0px)) auto 0}
+  .deck{transition:filter .4s}
+  .deck.stuck{filter:drop-shadow(0 18px 30px rgba(0,0,0,.85))}
+  .hint{margin:clamp(44px,13vw,64px) auto 0;padding:0 20px}
+}
+
+/* =========================================================
+   CONTROLS: now playing + FX pads
+   ========================================================= */
+.dock{display:flex;align-items:center;gap:14px;width:min(100%,560px)}
+.controls{flex:1;min-width:0;display:flex;align-items:center;gap:14px;padding:10px 16px 10px 10px;border-radius:20px;
+  background:linear-gradient(180deg,rgba(26,20,8,.85),rgba(6,5,3,.9));border:1px solid var(--line);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px)}
+@media (max-width:979px){.controls{background:linear-gradient(180deg,#1a1408,#060503);backdrop-filter:none;-webkit-backdrop-filter:none}}
+@media (max-width:979px){
+  .dock{position:fixed;z-index:31;left:10px;right:10px;bottom:calc(10px + var(--safe-b));width:auto;gap:10px;transform:translateY(160%);transition:transform .6s cubic-bezier(.2,.9,.2,1)}
+  body.entered .dock{transform:none}
+}
+.play{flex:none;width:46px;height:46px;border-radius:50%;display:grid;place-items:center;background:var(--gold-grad);color:#1b1102;box-shadow:0 0 0 1px rgba(255,227,154,.5) inset}
+.play svg{width:18px;height:18px}
+.now{flex:1;min-width:0;line-height:1.25}
+.now small{display:block;color:var(--muted);font-size:.74rem}
+.now strong{display:block;font-weight:500;font-size:.95rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.eq{display:inline-flex;gap:2px;align-items:flex-end;height:10px;margin-right:6px;vertical-align:-1px}
+.eq i{width:2px;background:var(--gold);height:100%;transform-origin:50% 100%;transform:scaleY(.3);transition:transform .08s}
+/* air horn: flat gold button */
+.horn-btn{position:relative;flex:none;width:66px;height:66px;border-radius:50%;display:grid;place-items:center;color:#1b1102;
+  background:linear-gradient(160deg,var(--gold-hi),var(--gold) 55%,#c48a12);
+  box-shadow:0 0 0 1px rgba(255,227,154,.55) inset,0 0 28px -6px rgba(224,165,38,.65);
+  transition:transform .1s ease-out,box-shadow .2s,filter .2s;touch-action:manipulation;-webkit-tap-highlight-color:transparent}
+.horn-btn svg{width:28px;height:28px}
+.horn-btn::before{content:"";position:absolute;inset:-7px;border-radius:50%;border:1.5px solid rgba(255,227,154,.55);pointer-events:none;
+  animation:invite 2.6s ease-out infinite}
+@keyframes invite{0%{transform:scale(.9);opacity:.85}100%{transform:scale(1.28);opacity:0}}
+.horn-btn:hover{filter:brightness(1.08);box-shadow:0 0 0 1px rgba(255,240,200,.7) inset,0 0 36px -4px rgba(224,165,38,.8)}
+.horn-btn:active,.horn-btn.hit{transform:scale(.92);box-shadow:0 0 0 1px #fff3cf inset,0 0 56px 6px rgba(224,165,38,.8)}
+.horn-btn:focus-visible{outline-offset:8px;border-radius:50%}
+@media (max-width:979px){.horn-btn{width:60px;height:60px;margin-right:6px}}
+
+/* =========================================================
+   CONTENT
+   ========================================================= */
+.intro{display:grid;gap:14px;margin:26px 0 54px;text-align:center}
+@media (min-width:980px){.intro{text-align:left;margin-top:0}}
+.intro h1{position:relative}
+.intro h1 img{position:relative;width:min(100%,520px);margin:0 auto;
+  filter:drop-shadow(0 0 4px rgba(255,227,154,.6)) drop-shadow(0 0 18px rgba(224,165,38,.55))}
+/* extra glow that pulses with the bass (opacity only) */
+.intro h1::before{content:"";position:absolute;inset:-25% -5%;background:radial-gradient(ellipse,rgba(224,165,38,.4),transparent 62%);
+  opacity:calc(.3 + var(--bass) * .7);will-change:opacity;pointer-events:none}
+@media (min-width:980px){.intro h1 img{margin:0}}
+.intro p{color:var(--muted);font-weight:300;font-size:1.05rem}
+.genres{display:flex;flex-wrap:wrap;gap:8px;justify-content:center}
+@media (min-width:980px){.genres{justify-content:flex-start}}
+.genres span{font-size:.82rem;padding:5px 12px;border-radius:999px;border:1px solid var(--line);color:var(--cream)}
+
+h2{font-family:var(--display);font-weight:800;font-size:2.4rem;line-height:1;letter-spacing:.01em;margin-bottom:18px;
+  background:var(--gold-grad);-webkit-background-clip:text;background-clip:text;color:transparent}
+section{margin-bottom:64px}
+
+/* next event */
+.event{position:relative;display:grid;grid-template-columns:1fr;gap:0;border-radius:22px;overflow:hidden;
+  background:var(--char);border:1px solid var(--line)}
+@media (min-width:560px){.event{grid-template-columns:44% 1fr}}
+.event-flyer{position:relative;display:block;aspect-ratio:4/5;overflow:hidden;background:#111}
+.event-flyer img{width:100%;height:100%;object-fit:cover;transition:transform .6s cubic-bezier(.2,.8,.2,1)}
+.event-flyer:hover img{transform:scale(1.04)}
+/* wider screens: show the whole flyer (4:5), never cropped */
+@media (min-width:560px){.event-flyer{aspect-ratio:4/5;align-self:start}}
+.event-body{display:flex;flex-direction:column;gap:12px;padding:22px 22px 24px}
+.date{display:flex;flex-direction:column;gap:6px;font-family:var(--display);line-height:.85}
+.date b{font-weight:900;font-size:clamp(3rem,4.6vw,4.2rem);white-space:nowrap;background:linear-gradient(180deg,var(--green),var(--blue));-webkit-background-clip:text;background-clip:text;color:transparent}
+.date span{font-weight:600;font-size:1.25rem;letter-spacing:.04em;color:var(--cream)}
+.event-title{font-size:1.25rem;font-weight:600;line-height:1.25}
+.event-title small{display:block;font-size:.9rem;font-weight:400;color:var(--muted);margin-top:2px}
+.event-meta{display:grid;gap:4px;font-size:.92rem;color:var(--cream)}
+.event-meta div{display:flex;gap:9px;align-items:flex-start}
+.event-meta svg{flex:none;width:16px;height:16px;margin-top:4px;color:var(--gold)}
+.event-caption{white-space:pre-line;color:var(--cream);font-size:.95rem;line-height:1.55;overflow-wrap:anywhere}
+.event-caption a{color:var(--gold-hi);text-underline-offset:3px}
+.btn-row{display:flex;flex-wrap:wrap;gap:10px;margin-top:auto;padding-top:6px}
+.btn{display:inline-flex;align-items:center;gap:8px;padding:11px 18px;border-radius:999px;font-weight:600;font-size:.92rem;text-decoration:none;transition:filter .2s,background .2s}
+.btn.gold{background:var(--gold-grad);color:#1b1102}
+.btn.gold:hover{filter:brightness(1.12)}
+.btn.ghost{border:1px solid var(--line);color:var(--cream)}
+.btn.ghost:hover{background:rgba(224,165,38,.1)}
+
+/* countdown: Nixie tubes in a clear acrylic case, under the event card (first tube style) */
+.cd{margin-top:22px;container-type:inline-size}
+.cd-head{font-size:.95rem;color:var(--muted);margin-bottom:12px}
+.cd-head b{color:var(--cream);font-weight:600}
+.nixie{--tw:min(8.3cqw,62px);position:relative;display:flex;align-items:flex-start;justify-content:center;gap:min(1.6cqw,12px);
+  padding:min(4.4cqw,26px) min(4cqw,28px) min(3cqw,18px);border-radius:14px;
+  background:linear-gradient(180deg,rgba(255,255,255,.07),rgba(255,255,255,.015) 40%,rgba(255,255,255,.03)),rgba(10,8,6,.55);
+  border:1px solid rgba(255,255,255,.16);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.28),inset 0 -1px 0 rgba(255,255,255,.08),0 0 0 1px rgba(0,0,0,.6),
+    0 24px 40px -18px #000,0 16px 40px -20px rgba(255,150,40,.55);
+  backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px)}
+@media (max-width:979px){.nixie{backdrop-filter:none;-webkit-backdrop-filter:none;--nx-bg:#0d0a08;background-color:#0d0a08}}
+/* the four corner screws of the acrylic case */
+.nixie::before,.nixie::after{content:"";position:absolute;top:8px;width:7px;height:7px;border-radius:50%;
+  background:radial-gradient(circle at 35% 30%,#d8d8d8,#5a5a5a 70%);box-shadow:0 0 0 1px rgba(0,0,0,.6),0 calc(100% + 0px) 0 0 transparent}
+.nixie::before{left:8px} .nixie::after{right:8px}
+.nx-screws{position:absolute;inset:auto 8px 8px;display:flex;justify-content:space-between;pointer-events:none}
+.nx-screws i{width:7px;height:7px;border-radius:50%;background:radial-gradient(circle at 35% 30%,#d8d8d8,#5a5a5a 70%);box-shadow:0 0 0 1px rgba(0,0,0,.6)}
+.nx-group{display:grid;justify-items:center;gap:8px}
+.nx-pair{display:flex;gap:min(1cqw,7px)}
+/* one glass tube */
+.tube{position:relative;width:var(--tw);height:calc(var(--tw) * 1.62);border-radius:calc(var(--tw) * .12);
+  overflow:hidden;display:grid;place-items:center;
+  background:
+    linear-gradient(90deg,rgba(255,255,255,.16),rgba(255,255,255,.02) 22%,transparent 50%,rgba(255,255,255,.02) 78%,rgba(255,255,255,.12)),
+    repeating-linear-gradient(60deg,rgba(255,170,90,.07) 0 1px,transparent 1px 5px),
+    repeating-linear-gradient(-60deg,rgba(255,170,90,.07) 0 1px,transparent 1px 5px),
+    radial-gradient(80% 60% at 50% 55%,rgba(255,110,20,.22),rgba(40,14,4,.9) 75%);
+  border:1px solid rgba(255,235,210,.22);
+  box-shadow:inset 0 6px 10px -6px rgba(255,255,255,.35),inset 0 -8px 14px -8px rgba(0,0,0,.8),
+    0 calc(var(--tw) * .3) calc(var(--tw) * .45) calc(var(--tw) * -.2) rgba(255,160,50,.55)}
+/* faint unlit digits stacked behind, like real cathodes */
+.tube::before{content:"8";position:absolute;inset:0;display:grid;place-items:center;font:200 calc(var(--tw) * 1.12)/1 "Outfit",sans-serif;color:rgba(255,140,60,.08)}
+.tube::after{content:"";position:absolute;left:12%;top:6%;width:18%;height:42%;border-radius:50%;background:linear-gradient(180deg,rgba(255,255,255,.28),transparent);filter:blur(1px)}
+.tube b{position:relative;font:200 calc(var(--tw) * 1.12)/1 "Outfit",sans-serif;color:#fff1dc;font-weight:300;
+  /* white-hot core, orange plasma halo */
+  text-shadow:0 0 1px #fff,0 0 3px #ffe2b0,0 0 6px #ffb050,0 0 12px #ff7a10,0 0 24px rgba(255,100,0,.7),0 0 40px rgba(255,80,0,.35);
+  animation:hum 3.7s linear infinite}
+/* the gas never burns perfectly steady: tiny irregular flickers */
+@keyframes hum{
+  0%,100%{opacity:1} 7%{opacity:.82} 8%{opacity:1} 9%{opacity:.9}
+  31%{opacity:1} 47%{opacity:.86} 48%{opacity:1}
+  72%{opacity:.94} 86%{opacity:.8} 87%{opacity:1} 88%{opacity:.92}}
+.nx-pair .tube:nth-child(2) b{animation-delay:-1.3s}
+.nx-group:nth-of-type(2) .tube b{animation-duration:4.3s}
+.nx-group:nth-of-type(3) .tube b{animation-duration:3.1s}
+.nx-group:nth-of-type(4) .tube b{animation-duration:4.9s}
+.tube b.flick{animation:flick .32s steps(1),hum 3.7s linear .32s infinite}
+@keyframes flick{0%{opacity:.15}25%{opacity:.9}45%{opacity:.35}70%{opacity:1}100%{opacity:1}}
+/* neon dot separators */
+.nx-sep{display:flex;flex-direction:column;justify-content:center;gap:calc(var(--tw) * .36);height:calc(var(--tw) * 1.62)}
+.nx-sep i{width:calc(var(--tw) * .16);height:calc(var(--tw) * .16);min-width:5px;min-height:5px;border-radius:50%;
+  background:radial-gradient(circle at 40% 35%,#fff1cf,#ff9a2e 55%,#c24a00);box-shadow:0 0 6px #ff8a1f,0 0 14px rgba(255,110,0,.7);animation:blink 1s steps(1) infinite}
+@keyframes blink{50%{opacity:.35}}
+.nx-lbl{font-size:.74rem;color:var(--muted)}
+
+/* COLOR VERSION: muted LED glow under each pair of tubes.
+   For plain amber: remove "color" from <div class="nixie color">. */
+.nixie.color .nx-group:nth-of-type(1) .tube{--led:#ff7a1a}
+.nixie.color .nx-group:nth-of-type(2) .tube{--led:#ff7a1a}
+.nixie.color .nx-group:nth-of-type(3) .tube{--led:#ff7a1a}
+.nixie.color .nx-group:nth-of-type(4) .tube{--led:#ff7a1a}
+.nixie.color .tube{
+  border-color:color-mix(in srgb,var(--led) 45%,rgba(255,255,255,.2));
+  background:
+    linear-gradient(0deg,color-mix(in srgb,var(--led) 30%,transparent),transparent 50%),
+    linear-gradient(90deg,rgba(255,255,255,.16),rgba(255,255,255,.02) 22%,transparent 50%,rgba(255,255,255,.02) 78%,rgba(255,255,255,.12)),
+    repeating-linear-gradient(60deg,rgba(255,170,90,.07) 0 1px,transparent 1px 5px),
+    repeating-linear-gradient(-60deg,rgba(255,170,90,.07) 0 1px,transparent 1px 5px),
+    radial-gradient(80% 60% at 50% 55%,rgba(255,110,20,.1),rgba(14,6,3,.96) 75%);
+  box-shadow:inset 0 6px 10px -6px rgba(255,255,255,.35),inset 0 -6px 12px -6px color-mix(in srgb,var(--led) 50%,transparent),
+    0 calc(var(--tw) * .3) calc(var(--tw) * .5) calc(var(--tw) * -.14) color-mix(in srgb,var(--led) 70%,transparent),
+    0 0 calc(var(--tw) * .32) calc(var(--tw) * -.14) color-mix(in srgb,var(--led) 55%,transparent)}
+.nixie.color{
+  background:
+    linear-gradient(90deg,transparent,#ff7a1a 20%,#ffa040 50%,#ff7a1a 80%,transparent) 0 100%/100% 2px no-repeat,
+    linear-gradient(180deg,rgba(255,255,255,.07),rgba(255,255,255,.015) 40%,rgba(255,255,255,.03)),var(--nx-bg,rgba(10,8,6,.55));
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.28),0 0 0 1px rgba(0,0,0,.6),0 24px 40px -18px #000,
+    -60px 18px 50px -38px rgba(255,122,26,.28),0 20px 50px -32px rgba(255,140,40,.3),60px 18px 50px -38px rgba(255,122,26,.28)}
+
+/* links */
+.links{list-style:none;display:grid;gap:10px}
+.link{position:relative;display:flex;align-items:center;gap:16px;padding:16px 22px;border-radius:16px;text-decoration:none;
+  background:linear-gradient(180deg,rgba(255,227,154,.05),rgba(255,227,154,.01));border:1px solid var(--line);overflow:hidden;isolation:isolate;
+  transition:border-color .3s,background .3s}
+.link::before{content:"";position:absolute;inset:0;z-index:-1;background:linear-gradient(110deg,transparent 35%,rgba(255,227,154,.16) 50%,transparent 65%);transform:translateX(-110%);transition:transform .7s cubic-bezier(.2,.8,.2,1)}
+.link:hover::before,.link:focus-visible::before{transform:translateX(110%)}
+.link:hover,.link:focus-visible{border-color:rgba(224,165,38,.55)}
+.link .ico{flex:none;width:42px;height:42px;border-radius:12px;display:grid;place-items:center;background:#000;border:1px solid var(--line);color:var(--gold-hi)}
+.link .ico svg{width:20px;height:20px}
+.link-text{flex:1;min-width:0;line-height:1.3}
+.link-text strong{display:block;font-weight:600;font-size:1.02rem}
+.link-text small{color:var(--muted);font-size:.85rem}
+/* the [ ] from the logo frames whichever link you're on */
+.brk{position:absolute;top:50%;margin-top:-.62em;line-height:1;font-family:var(--display);font-weight:800;font-size:1.8rem;color:var(--gold);opacity:0;transition:transform .35s cubic-bezier(.2,.9,.2,1.3),opacity .25s}
+.brk.l{left:5px;transform:translateX(14px)} .brk.r{right:7px;transform:translateX(-14px)}
+.link:hover .brk,.link:focus-visible .brk{opacity:1;transform:none}
+
+footer{display:grid;gap:6px;color:var(--muted);font-size:.85rem;text-align:center;padding-top:10px;border-top:1px solid var(--line)}
+@media (min-width:980px){footer{text-align:left}}
+footer a{text-underline-offset:3px}
+/* phones: the O.I.M. credit drops to its own centered line, so the divider goes */
+@media (max-width:560px){footer a[href*="ocean-in-motion"]{display:flex!important;justify-content:center;margin:6px 0 0!important;padding-left:0!important;border-left:0!important}}
+
+/* page-load: one orchestrated moment after you enter */
+.reveal{opacity:0;transform:translateY(18px)}
+body.entered .reveal{opacity:1;transform:none;transition:opacity .9s ease,transform .9s cubic-bezier(.2,.8,.2,1);transition-delay:calc(var(--i,0)*90ms + 500ms)}
+
+@keyframes spin{to{transform:rotate(360deg)}}
+</style>
+</head>
+<body>
+
+<div class="bg" id="bg" aria-hidden="true"></div>
+<div class="grain" aria-hidden="true"></div>
+
+<!-- Splash: browsers only allow sound after a tap -->
+<div class="splash" id="splash" role="dialog" aria-modal="true" aria-label="Welcome">
+  <div class="splash-inner">
+    <div class="splash-glow"><img class="splash-logo" src="assets/logo.webp" alt="Narci"></div>
+    <button class="needle-btn" id="enter"><span class="disc" aria-hidden="true"></span>Drop the needle</button>
+    <button class="quiet-btn" id="enterMuted">Enter without sound</button>
+  </div>
+</div>
+
+<div class="app">
+  <!-- ================= DECK ================= -->
+  <aside class="deck-col" aria-label="Turntable and mix player">
+    <div class="deck-slot" id="deckSlot">
+      <div class="deck" id="deck">
+        <div class="platter-wrap">
+          <canvas class="viz" id="viz" aria-hidden="true"></canvas>
+          <div class="platter" id="platter">
+            <div class="strobe" aria-hidden="true"></div>
+            <div class="vinyl" id="vinyl" tabindex="0" role="slider" aria-label="Turntable. Drag to scratch, hold to stop the record, tap for an echo. Arrow keys nudge it, Enter throws an echo."
+                 aria-valuemin="0" aria-valuemax="300" aria-valuenow="100" aria-valuetext="Normal speed">
+              <div class="label">
+                <svg class="print" viewBox="0 0 200 200" aria-hidden="true">
+                  <defs><path id="lblPath" d="M100,100 m-80,0 a80,80 0 1,1 160,0 a80,80 0 1,1 -160,0"/></defs>
+                  <circle cx="100" cy="100" r="95" fill="none" stroke="#e0a526" stroke-opacity=".55" stroke-width="1.2"/>
+                  <circle cx="100" cy="100" r="70" fill="none" stroke="#e0a526" stroke-opacity=".25" stroke-width=".8"/>
+                  <text font-family="Outfit, sans-serif" font-size="10.5" font-weight="600" letter-spacing="2.6" fill="#e9c46a"><textPath href="#lblPath">NARCI ◆ SIDE A ◆ 33⅓ RPM ◆ STEREO ◆ ONE LINK ◆</textPath></text>
+                </svg>
+                <img src="assets/mark.webp" alt="">
+              </div>
+            </div>
+          </div>
+          <div class="shine" aria-hidden="true"></div>
+          <div class="ripple" id="ripple" aria-hidden="true"></div>
+        </div>
+
+
+      </div>
+    </div>
+    <p class="hint" id="hint">Spin the record. Hold it to stop the music.</p>
+
+    <div class="dock" id="dock">
+      <div class="controls" id="controls">
+        <button class="play" id="play" aria-label="Pause mix">
+          <svg id="playIcon" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/></svg>
+        </button>
+        <div class="now">
+          <small><span class="eq" aria-hidden="true"><i></i><i></i><i></i><i></i></span>Now playing</small>
+          <strong id="trackTitle">Narci live mix</strong>
+        </div>
+      </div>
+      <button class="horn-btn" id="padHorn" aria-label="Air horn">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"><path d="M3 10v4h3l9 5V5L6 10H3z" fill="currentColor" fill-opacity=".18"/><path d="M18 9c1 1 1 5 0 6M20.5 7c2 2.5 2 7.5 0 10"/></svg>
+      </button>
+    </div>
+  </aside>
+
+  <!-- ================= CONTENT ================= -->
+  <main class="content">
+    <header class="intro reveal" style="--i:0">
+      <h1><img src="assets/logo.webp" alt="Narci"></h1>
+      <p>DJ out of Tampa Bay. Island sounds, big energy, all night.</p>
+      <div class="genres"><span>Afrobeats</span><span>Dancehall</span><span>Soca</span><span>Hip-hop</span><span>R&amp;B</span></div>
+    </header>
+
+    <!-- NEXT EVENT
+         Placeholder for now. When the Instagram function is live,
+         Shows the placeholder until the Instagram function answers. -->
+    <section class="reveal" style="--i:1" aria-labelledby="nextTitle">
+      <h2 id="nextTitle">Next up</h2>
+      <article class="event" id="event">
+        <a class="event-flyer" id="evFlyerLink" href="https://www.onelinkentertainment.com" target="_blank" rel="noopener">
+          <img id="evImg" src="assets/flyer-rum-in-the-sun.webp" alt="Rum in the Sun flyer">
+        </a>
+        <div class="event-body">
+          <div class="date" id="evDate"><b id="evDay">Nov 15</b><span id="evWeekday">Sunday</span></div>
+          <div class="event-title" id="evTitle">Rum in the Sun<small>One year anniversary</small></div>
+          <div class="event-meta" id="evMeta">
+            <div><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>4 to 9 PM</div>
+            <div><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 21s-7-6.2-7-11a7 7 0 0 1 14 0c0 4.8-7 11-7 11z"/><circle cx="12" cy="10" r="2.5"/></svg>The Garden, 6445 US Highway 301 S, Riverview, FL</div>
+          </div>
+          <p class="event-caption" id="evCaption" hidden></p>
+          <div class="btn-row">
+            <a class="btn gold" id="evTickets" href="https://www.onelinkentertainment.com" target="_blank" rel="noopener">Get tickets</a>
+            <a class="btn ghost" id="evMore" href="https://www.onelinkentertainment.com" target="_blank" rel="noopener">Learn more</a>
+          </div>
+        </div>
+      </article>
+
+      <div class="cd" id="cd" role="timer" aria-live="off" aria-label="Countdown to the next event">
+        <p class="cd-head" id="cdHead">Starts in</p>
+        <div class="nixie color"><!-- remove "color" for plain amber -->
+          <div class="nx-group"><div class="nx-pair"><span class="tube"><b id="cdD0">0</b></span><span class="tube"><b id="cdD1">0</b></span></div><span class="nx-lbl">days</span></div>
+          <span class="nx-sep" aria-hidden="true"><i></i><i></i></span>
+          <div class="nx-group"><div class="nx-pair"><span class="tube"><b id="cdH0">0</b></span><span class="tube"><b id="cdH1">0</b></span></div><span class="nx-lbl">hours</span></div>
+          <span class="nx-sep" aria-hidden="true"><i></i><i></i></span>
+          <div class="nx-group"><div class="nx-pair"><span class="tube"><b id="cdM0">0</b></span><span class="tube"><b id="cdM1">0</b></span></div><span class="nx-lbl">minutes</span></div>
+          <span class="nx-sep" aria-hidden="true"><i></i><i></i></span>
+          <div class="nx-group"><div class="nx-pair"><span class="tube"><b id="cdS0">0</b></span><span class="tube"><b id="cdS1">0</b></span></div><span class="nx-lbl">seconds</span></div>
+          <div class="nx-screws" aria-hidden="true"><i></i><i></i></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="reveal" style="--i:2" aria-labelledby="linksTitle">
+      <h2 id="linksTitle">Tap in</h2>
+      <ul class="links">
+        <li><a class="link" href="https://www.onelinkentertainment.com" target="_blank" rel="noopener">
+          <span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 8a2 2 0 0 0 2-2h14a2 2 0 0 0 2 2v2a2 2 0 0 0 0 4v2a2 2 0 0 0-2 2H5a2 2 0 0 0-2-2v-2a2 2 0 0 0 0-4z"/><path d="M14 6v12" stroke-dasharray="2 2"/></svg></span>
+          <span class="brk l" aria-hidden="true">[</span>
+          <span class="link-text"><strong>ONE Link Entertainment events</strong><small>Tickets and upcoming parties</small></span>
+          <span class="brk r" aria-hidden="true">]</span></a></li>
+        <li><a class="link" href="https://on.soundcloud.com/xFIv5CiNiUtUujAK6W" target="_blank" rel="noopener">
+          <span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M10 9v9M7 11v7M4 13v5M13 7v11h6a3 3 0 0 0 0-6 5 5 0 0 0-6-5z"/></svg></span>
+          <span class="brk l" aria-hidden="true">[</span>
+          <span class="link-text"><strong>SoundCloud</strong><small>Full mixes and sets</small></span>
+          <span class="brk r" aria-hidden="true">]</span></a></li>
+        <li><a class="link" href="https://www.youtube.com/@dj_narci" target="_blank" rel="noopener">
+          <span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="2.5" y="5" width="19" height="14" rx="4"/><path d="M10 9.5v5l4.5-2.5z" fill="currentColor"/></svg></span>
+          <span class="brk l" aria-hidden="true">[</span>
+          <span class="link-text"><strong>YouTube</strong><small>Live sets on video</small></span>
+          <span class="brk r" aria-hidden="true">]</span></a></li>
+        <li><a class="link" href="https://wa.me/18132972534" target="_blank" rel="noopener">
+          <span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M4 20l1.3-3.9A8 8 0 1 1 8 19z"/><path d="M9 8.5c0 3.5 3 6.5 6.5 6.5l1-1.6-2-1-1 .8a4.5 4.5 0 0 1-2.2-2.2l.8-1-1-2z" fill="currentColor" stroke="none"/></svg></span>
+          <span class="brk l" aria-hidden="true">[</span>
+          <span class="link-text"><strong>WhatsApp</strong><small>Bookings and questions: +1 (813) 297-2534</small></span>
+          <span class="brk r" aria-hidden="true">]</span></a></li>
+      </ul>
+    </section>
+
+
+    <footer class="reveal" style="--i:3">
+      <p>© <span id="yr">2026</span> Narci. All rights reserved.<!-- O.I.M. credit -->
+<a href="https://ocean-in-motion.com" target="_blank" rel="noopener"
+   style="
+     display:inline-flex; align-items:center; gap:6px; vertical-align:middle;
+     font-family:'Space Grotesk','Segoe UI',system-ui,sans-serif;
+     font-size:13px; font-weight:500; letter-spacing:.02em;
+     color:inherit; text-decoration:none; opacity:.7;
+     margin-left:12px; padding-left:12px; border-left:1px solid currentColor;
+     transition:opacity .2s ease;
+   "
+   onmouseover="this.style.opacity='1';"
+   onmouseout="this.style.opacity='.7';"
+>
+  <svg width="13" height="13" viewBox="0 0 911.98 914.31" style="flex-shrink:0;">
+    <path fill="currentColor" stroke="currentColor" stroke-miterlimit="10" style="stroke-width:41px;" d="M481.01,21.3c312.77,17.94,505.26,355.24,362.62,633.93-98.11,195.64-334.08,288.82-539.02,211.34C-17.26,745.89-80.52,319.41,191.68,109.85,273.37,46.99,377.95,14.96,480.81,21.29h.2ZM591.59,396.39c-26.89,17-37.58,59.14-18.87,91.02,16.89,28.76,44.5,44.17,74.52,56.61,47.05,19.5,97.88,30.01,148.9,32.21,10.45.45,20.91.46,31.18-.03,3.05-.15,14.56.62,16.3-.21,1.66-.79,3.63-10.54,4.25-12.72,16.08-56.17,18.16-120.43,8-177.89-15.82-89.42-63.17-172.87-130.69-232.67-89.7-79.44-211.36-115.81-330.14-97.76C227.77,80.35,92.46,207.29,57.51,373.08c-3.57,16.96-7.27,38.98-8.04,56.15-1.66,37.2.39,75.34,8.04,111.67,1.37,6.51,2.95,13.2,4.66,19.64.76,2.86,2.11,9.08,3.35,11.32.66,1.2,1.7,2.43,2.97,2.99,3.5,1.57,10.33,3.11,14.27,4.07,28.65,7.01,60.84,7.19,86.46-8.85,30.24-18.93,59.59-46.95,87.3-69.97,50.91-42.3,100.73-90.27,163.45-114.4,55.64-21.41,120.32-26.62,179.48-28.68,12.08-.42,24.44.1,35.18,1.08,4.84.44,16.2,3.42,9.08,7.89,0,0-38.64,21.89-52.12,30.41ZM564.39,384.1c-.85-.83-11.1-.1-13.01.05-22.76,1.84-46.8,4.7-69.17,9.23-56.34,11.41-94.69,31.86-138.86,67.01-44.31,35.25-86.08,73.07-130.6,108.28-27.71,21.92-49.12,37.97-86.44,39.19-8.14.27-18.11.26-26.15-.49-7.65-.71-15.52-3.13-23.16-4.12-.86.86,1.85,7.46,2.39,8.84,18.87,48.13,52.56,95.83,88.39,132.15,59.72,60.54,140.85,101.7,225.39,114.83,22.29,3.46,47.85,5.32,70.11,4.14,16.42-.87,31.68-.95,48.1-3.25,130.17-18.21,242.5-98.03,303.91-213.29,7.34-13.78,13.4-28.09,19.42-42.49l-.47-3.23-.93-.45c-20.95-.15-42.02.57-62.78-1.41-58.13-5.55-131.43-23.26-179.57-57.02-50.11-35.14-77.97-105.99-28.85-154.53l2.28-3.45Z"/>
+  </svg>
+  Built by O.I.M.
+</a>
+      </p>
+    </footer>
+  </main>
+</div>
+
+<script>
+(() => {
+/* =========================================================
+   CONFIG
+   ========================================================= */
+const MIX_SRC = "assets/mix.mp3";       // drop Narci's mix here. Until then a demo groove plays.
+const MIX_TITLE = "Narci live mix";
+const NEXT_EVENT_API = "/api/next-event"; // reads @dj_narci on Instagram. Set to null to always show the placeholder.
+const PLACEHOLDER_EVENT_START = "2026-11-15T16:00:00-05:00";
+
+const $ = (id) => document.getElementById(id);
+const reduceMotion = false;   // motion always on
+const isPhone = matchMedia("(max-width: 979px)").matches;   // phones get a lighter version of the effects
+$("yr").textContent = new Date().getFullYear();
+
+/* =========================================================
+   AUDIO
+   ========================================================= */
+const audio = new Audio();
+audio.loop = true;
+audio.preload = "auto";
+audio.setAttribute("playsinline", "");
+audio.preservesPitch = false; audio.mozPreservesPitch = false; audio.webkitPreservesPitch = false;
+
+let usingDemo = false;
+audio.addEventListener("error", async () => {
+  if (usingDemo) return;
+  usingDemo = true;
+  $("trackTitle").textContent = "Demo groove (add assets/mix.mp3)";
+  audio.src = await buildDemoLoop();
+  audio.load();
+  if (playing) audio.play().catch(() => {});
+}, { once: true });
+audio.src = MIX_SRC;
+
+/* ---------- iPhone silent switch ----------
+   Web Audio follows the silent switch on iOS by default. Telling Safari this page
+   plays music (iOS 17+) makes it play anyway. Older iPhones get the classic fallback:
+   a silent audio track looping in the background moves the page onto the media channel. */
+try { if ("audioSession" in navigator) navigator.audioSession.type = "playback"; } catch (e) {}
+const isIOS = /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+let unmuteEl = null;
+function unlockSilentSwitch() {
+  if (!isIOS || unmuteEl || "audioSession" in navigator) return;
+  unmuteEl = new Audio("assets/silence.mp3");
+  unmuteEl.loop = true; unmuteEl.setAttribute("playsinline", "");
+  unmuteEl.play().catch(() => {});
+  // drop it when the page is hidden so it doesn't show a lock-screen player, bring it back on return
+  document.addEventListener("visibilitychange", () => {
+    if (document.hidden) unmuteEl.pause(); else unmuteEl.play().catch(() => {});
+  });
+}
+
+let ctx, master, brake, filter, delay, feedback, send, analyser, freq, scratchGain, scratchBP;
+
+function initGraph() {
+  if (ctx) return;
+  ctx = new (window.AudioContext || window.webkitAudioContext)();
+  const src = ctx.createMediaElementSource(audio);
+  filter = ctx.createBiquadFilter(); filter.type = "lowpass"; filter.frequency.value = 20000; filter.Q.value = 0.9;
+  brake = ctx.createGain();                       // dips when the record is held still
+  master = ctx.createGain(); master.gain.value = 0;
+  delay = ctx.createDelay(2); delay.delayTime.value = 0.44;
+  feedback = ctx.createGain(); feedback.gain.value = 0;
+  send = ctx.createGain(); send.gain.value = 0;
+  analyser = ctx.createAnalyser(); analyser.fftSize = 512; analyser.smoothingTimeConstant = 0.78;
+  freq = new Uint8Array(analyser.frequencyBinCount);
+
+  src.connect(filter); filter.connect(brake); brake.connect(master);
+  brake.connect(send); send.connect(delay); delay.connect(feedback); feedback.connect(delay); delay.connect(master);
+  master.connect(analyser); analyser.connect(ctx.destination);
+
+  // scratch noise layer
+  const nb = ctx.createBuffer(1, ctx.sampleRate, ctx.sampleRate);
+  const d = nb.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+  const ns = ctx.createBufferSource(); ns.buffer = nb; ns.loop = true;
+  scratchBP = ctx.createBiquadFilter(); scratchBP.type = "bandpass"; scratchBP.Q.value = 4;
+  scratchGain = ctx.createGain(); scratchGain.gain.value = 0;
+  ns.connect(scratchBP); scratchBP.connect(scratchGain); scratchGain.connect(analyser);
+  ns.start();
+  loadHorn();
+}
+
+/* ---------- FX ---------- */
+function echoThrow() {
+  if (!ctx) return;
+  const t = ctx.currentTime;
+  send.gain.cancelScheduledValues(t); feedback.gain.cancelScheduledValues(t);
+  send.gain.setValueAtTime(0.85, t); send.gain.setTargetAtTime(0, t + 0.35, 0.25);
+  feedback.gain.setValueAtTime(0.62, t); feedback.gain.setTargetAtTime(0, t + 1.4, 0.6);
+}
+function filterDown() {
+  if (!ctx) return;
+  const t = ctx.currentTime;
+  filter.frequency.cancelScheduledValues(t);
+  filter.frequency.setValueAtTime(filter.frequency.value, t);
+  filter.frequency.exponentialRampToValueAtTime(320, t + 0.7);
+  filter.Q.setTargetAtTime(7, t, 0.2);
+}
+function filterUp() {
+  if (!ctx) return;
+  const t = ctx.currentTime;
+  filter.frequency.cancelScheduledValues(t);
+  filter.frequency.setValueAtTime(Math.max(filter.frequency.value, 200), t);
+  filter.frequency.exponentialRampToValueAtTime(20000, t + 0.45);
+  filter.Q.setTargetAtTime(0.9, t, 0.15);
+}
+// Air horn sample (assets/airhorn.mp3). Falls back to a synthesized horn if it can't load.
+const hornData = fetch("assets/airhorn.mp3").then((r) => (r.ok ? r.arrayBuffer() : null)).catch(() => null);
+let hornBuf = null;
+async function loadHorn() {
+  if (hornBuf || !ctx) return;
+  const d = await hornData;
+  if (!d) return;
+  try { hornBuf = await ctx.decodeAudioData(d.slice(0)); } catch (e) {}
+}
+function airHorn() {
+  if (!ctx) return;
+  if (hornBuf) {
+    const src = ctx.createBufferSource(), g = ctx.createGain();
+    src.buffer = hornBuf; g.gain.value = 0.55;
+    src.connect(g); g.connect(analyser); src.start();
+    return;
+  }
+  airHornSynth();
+}
+function airHornSynth() {
+  const t0 = ctx.currentTime + 0.01;
+  const out = ctx.createGain(); out.gain.value = 0.14;
+  const lp = ctx.createBiquadFilter(); lp.type = "lowpass"; lp.frequency.value = 3200;
+  const shaper = ctx.createWaveShaper();
+  const curve = new Float32Array(1024); for (let i = 0; i < 1024; i++) { const x = i / 512 - 1; curve[i] = Math.tanh(x * 3); }
+  shaper.curve = curve;
+  shaper.connect(lp); lp.connect(out); out.connect(analyser);
+  [[0, 0.11], [0.16, 0.11], [0.32, 0.75]].forEach(([at, len]) => {
+    const env = ctx.createGain(); env.gain.value = 0; env.connect(shaper);
+    const s = t0 + at;
+    env.gain.setValueAtTime(0, s); env.gain.linearRampToValueAtTime(0.9, s + 0.015);
+    env.gain.setValueAtTime(0.9, s + len - 0.04); env.gain.linearRampToValueAtTime(0, s + len);
+    [415, 523, 622].forEach((f, i) => {
+      const o = ctx.createOscillator(); o.type = "sawtooth";
+      o.frequency.setValueAtTime(f * 0.94, s); o.frequency.linearRampToValueAtTime(f, s + 0.05);
+      o.detune.value = (i - 1) * 9;
+      o.connect(env); o.start(s); o.stop(s + len + 0.02);
+    });
+  });
+}
+
+/* =========================================================
+   DEMO GROOVE: rendered once, used until a real mix is added
+   ========================================================= */
+async function buildDemoLoop() {
+  const sr = 44100, bpm = 102, step = 60 / bpm / 4, bars = 8, len = bars * 16 * step;
+  const oc = new OfflineAudioContext(2, Math.ceil(len * sr), sr);
+  const bus = oc.createDynamicsCompressor(); bus.threshold.value = -14; bus.ratio.value = 4; bus.connect(oc.destination);
+  const nb = oc.createBuffer(1, sr, sr); const nd = nb.getChannelData(0);
+  for (let i = 0; i < nd.length; i++) nd[i] = Math.random() * 2 - 1;
+
+  const kick = (t) => {
+    const o = oc.createOscillator(), g = oc.createGain();
+    o.frequency.setValueAtTime(140, t); o.frequency.exponentialRampToValueAtTime(42, t + 0.14);
+    g.gain.setValueAtTime(1, t); g.gain.exponentialRampToValueAtTime(0.001, t + 0.38);
+    o.connect(g); g.connect(bus); o.start(t); o.stop(t + 0.4);
+  };
+  const noiseHit = (t, type, f, gain, dec, pan = 0) => {
+    const s = oc.createBufferSource(); s.buffer = nb;
+    const fl = oc.createBiquadFilter(); fl.type = type; fl.frequency.value = f; fl.Q.value = 1.2;
+    const g = oc.createGain(); g.gain.setValueAtTime(gain, t); g.gain.exponentialRampToValueAtTime(0.001, t + dec);
+    const p = oc.createStereoPanner(); p.pan.value = pan;
+    s.connect(fl); fl.connect(g); g.connect(p); p.connect(bus); s.start(t, Math.random() * 0.5); s.stop(t + dec + 0.02);
+  };
+  const snare = (t) => {
+    noiseHit(t, "bandpass", 1900, 0.55, 0.14);
+    const o = oc.createOscillator(), g = oc.createGain(); o.type = "triangle"; o.frequency.value = 330;
+    g.gain.setValueAtTime(0.35, t); g.gain.exponentialRampToValueAtTime(0.001, t + 0.08);
+    o.connect(g); g.connect(bus); o.start(t); o.stop(t + 0.1);
+  };
+  const bass = (t, f, dur) => {
+    const o = oc.createOscillator(), o2 = oc.createOscillator(), lp = oc.createBiquadFilter(), g = oc.createGain();
+    o.type = "sine"; o2.type = "triangle"; o.frequency.value = f; o2.frequency.value = f * 2;
+    lp.type = "lowpass"; lp.frequency.value = 380;
+    g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(0.5, t + 0.01); g.gain.setTargetAtTime(0, t + dur * 0.7, 0.05);
+    o.connect(lp); o2.connect(lp); lp.connect(g); g.connect(bus);
+    o.start(t); o2.start(t); o.stop(t + dur + 0.2); o2.stop(t + dur + 0.2);
+  };
+  const stab = (t, notes) => {
+    const lp = oc.createBiquadFilter(); lp.type = "lowpass"; lp.frequency.setValueAtTime(2600, t); lp.frequency.exponentialRampToValueAtTime(700, t + 0.2);
+    const g = oc.createGain(); g.gain.setValueAtTime(0.07, t); g.gain.exponentialRampToValueAtTime(0.001, t + 0.26);
+    lp.connect(g); g.connect(bus);
+    notes.forEach((f, i) => {
+      const o = oc.createOscillator(); o.type = "sawtooth"; o.frequency.value = f; o.detune.value = (i - 1) * 7;
+      const p = oc.createStereoPanner(); p.pan.value = (i - 1) * 0.5;
+      o.connect(p); p.connect(lp); o.start(t); o.stop(t + 0.3);
+    });
+  };
+  const prog = [
+    { root: 55,    chord: [220, 261.6, 329.6] },   // Am
+    { root: 43.65, chord: [174.6, 220, 261.6] },   // F
+    { root: 65.41, chord: [261.6, 329.6, 392] },   // C
+    { root: 49,    chord: [196, 246.9, 293.7] },   // G
+  ];
+  for (let bar = 0; bar < bars; bar++) {
+    const c = prog[Math.floor(bar / 2) % 4];
+    for (let s = 0; s < 16; s++) {
+      const t = (bar * 16 + s) * step;
+      if (s % 4 === 0) kick(t);
+      if ([3, 6, 11, 14].includes(s)) snare(t);
+      noiseHit(t, "highpass", 8500, s % 2 ? 0.16 : 0.07, 0.045, s % 2 ? 0.3 : -0.3);
+      if ([0, 3, 6, 8, 11, 14].includes(s)) bass(t, c.root, step * 2.6);
+      if ([2, 6, 10, 14].includes(s)) stab(t, c.chord);
+    }
+  }
+  const buf = await oc.startRendering();
+  return URL.createObjectURL(toWav(buf));
+}
+function toWav(buf) {
+  const ch = buf.numberOfChannels, len = buf.length, sr = buf.sampleRate;
+  const ab = new ArrayBuffer(44 + len * ch * 2), v = new DataView(ab);
+  const w = (o, s) => { for (let i = 0; i < s.length; i++) v.setUint8(o + i, s.charCodeAt(i)); };
+  w(0, "RIFF"); v.setUint32(4, 36 + len * ch * 2, true); w(8, "WAVE"); w(12, "fmt ");
+  v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, ch, true); v.setUint32(24, sr, true);
+  v.setUint32(28, sr * ch * 2, true); v.setUint16(32, ch * 2, true); v.setUint16(34, 16, true);
+  w(36, "data"); v.setUint32(40, len * ch * 2, true);
+  const data = []; for (let c = 0; c < ch; c++) data.push(buf.getChannelData(c));
+  let o = 44;
+  for (let i = 0; i < len; i++) for (let c = 0; c < ch; c++) {
+    const s = Math.max(-1, Math.min(1, data[c][i])); v.setInt16(o, s < 0 ? s * 0x8000 : s * 0x7fff, true); o += 2;
+  }
+  return new Blob([ab], { type: "audio/wav" });
+}
+
+/* =========================================================
+   ENTER / PLAY / PAUSE
+   ========================================================= */
+let playing = false, muted = false;
+const deck = $("deck");
+
+function enter(withSound) {
+  muted = !withSound;
+  if (withSound) start();          // first thing in the tap, before anything else
+  else setPlayIcon(false);
+  $("splash").classList.add("gone");
+  document.body.classList.add("entered");
+  setTimeout(() => $("splash").remove(), 900);
+}
+// Everything here runs synchronously inside the tap. iPhones block sound that starts later.
+function start() {
+  initGraph();
+  if (ctx.state !== "running") ctx.resume().catch(() => {});
+  const p = audio.play();
+  unlockSilentSwitch();
+  playing = true; muted = false;
+  deck.classList.add("on");
+  const t = ctx.currentTime;
+  master.gain.cancelScheduledValues(t); master.gain.setValueAtTime(master.gain.value, t); master.gain.linearRampToValueAtTime(1, t + 1.6);
+  setPlayIcon(true);
+  if (p && p.catch) p.catch(() => {
+    if (usingDemo) return;           // the demo swap restarts playback itself
+    playing = false; deck.classList.remove("on"); setPlayIcon(false);
+    hint("Tap play to start the music.");
+  });
+}
+function pause() {
+  playing = false;
+  deck.classList.remove("on");
+  if (ctx) { const t = ctx.currentTime; master.gain.setTargetAtTime(0, t, 0.25); }
+  setTimeout(() => { if (!playing) audio.pause(); }, 900);
+  setPlayIcon(false);
+}
+function setPlayIcon(isPlaying) {
+  $("play").setAttribute("aria-label", isPlaying ? "Pause mix" : "Play mix");
+  $("playIcon").innerHTML = isPlaying
+    ? '<rect x="6" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/>'
+    : '<path d="M8 5.5v13a1 1 0 0 0 1.5.86l10.5-6.5a1 1 0 0 0 0-1.72L9.5 4.64A1 1 0 0 0 8 5.5z"/>';
+}
+$("enter").addEventListener("click", () => enter(true));
+$("enterMuted").addEventListener("click", () => enter(false));
+$("play").addEventListener("click", () => (playing ? pause() : start()));
+
+/* Stop the music when you leave the page (switch apps, lock the phone, change tabs),
+   and pick it back up when you come back. */
+let resumeOnReturn = false;
+function stopForBackground() {
+  if (!playing) return;
+  resumeOnReturn = true;
+  playing = false;
+  deck.classList.remove("on");
+  audio.pause();                                  // right away: timers are frozen in the background
+  if (ctx && ctx.state === "running") ctx.suspend().catch(() => {});
+  setPlayIcon(false);
+}
+function backFromBackground() {
+  if (!resumeOnReturn) return;
+  resumeOnReturn = false;
+  if (ctx) ctx.resume().catch(() => {});
+  audio.play().then(() => {
+    playing = true; deck.classList.add("on"); setPlayIcon(true);
+    const t = ctx.currentTime;
+    master.gain.cancelScheduledValues(t); master.gain.setValueAtTime(0, t); master.gain.linearRampToValueAtTime(1, t + 0.8);
+  }).catch(() => hint("Tap play to start the music."));   // some phones need a tap to resume
+}
+document.addEventListener("visibilitychange", () => (document.hidden ? stopForBackground() : backFromBackground()));
+addEventListener("pagehide", stopForBackground);
+
+/* =========================================================
+   TURNTABLE PHYSICS
+   33 1/3 rpm = 200 degrees per second = playback rate 1
+   ========================================================= */
+const BASE = 200;
+const vinyl = $("vinyl");
+let angle = 0, motor = 0, spinExtra = 0;
+let holding = false, engaged = false, downAt = 0, moved = 0, lastA = 0, dragAccum = 0, impulse = 0;
+let lastRate = 1;
+
+function pointerAngle(e) {
+  const r = vinyl.getBoundingClientRect();
+  return Math.atan2(e.clientY - (r.top + r.height / 2), e.clientX - (r.left + r.width / 2)) * 180 / Math.PI;
+}
+vinyl.addEventListener("pointerdown", (e) => {
+  vinyl.setPointerCapture(e.pointerId);
+  holding = true; engaged = false; downAt = performance.now(); moved = 0; dragAccum = 0;
+  lastA = pointerAngle(e);
+  if (!ctx && document.body.classList.contains("entered")) start();
+});
+vinyl.addEventListener("pointermove", (e) => {
+  if (!holding) return;
+  const a = pointerAngle(e);
+  let d = a - lastA; if (d > 180) d -= 360; if (d < -180) d += 360;
+  lastA = a; dragAccum += d; moved += Math.abs(d);
+  if (moved > 4) engaged = true;
+});
+const release = () => {
+  if (!holding) return;
+  const quick = performance.now() - downAt < 220 && moved < 6;
+  holding = false; engaged = false;
+  if (quick) tapEcho();
+};
+vinyl.addEventListener("pointerup", release);
+vinyl.addEventListener("pointercancel", release);
+vinyl.addEventListener("keydown", (e) => {
+  if (e.key === "ArrowLeft") { impulse -= 520; e.preventDefault(); }
+  else if (e.key === "ArrowRight") { impulse += 380; e.preventDefault(); }
+  else if (e.key === "Enter" || e.key === " ") { tapEcho(); e.preventDefault(); }
+});
+function tapEcho() {
+  echoThrow();
+  const r = $("ripple"); r.classList.remove("go"); void r.offsetWidth; r.classList.add("go");
+}
+
+let lastScrollY = scrollY;
+addEventListener("scroll", () => {
+  const dy = scrollY - lastScrollY; lastScrollY = scrollY;
+  spinExtra = Math.max(-900, Math.min(900, spinExtra + dy * 6));   // visual only
+}, { passive: true });
+
+let hintTimer;
+function hint(msg) {
+  const h = $("hint"); h.textContent = msg;
+  clearTimeout(hintTimer); hintTimer = setTimeout(() => (h.textContent = "Spin the record. Hold it to stop the music."), 4000);
+}
+
+const eqBars = document.querySelectorAll(".eq i");
+const speed = 1;
+
+/* =========================================================
+   NEON SPIKES around the record
+   Each spike = soft colored halo + bright tube + white-hot core
+   ========================================================= */
+const cv = $("viz"), g2 = cv.getContext("2d");
+const BARS = 96;
+const NEON = [[255, 45, 209], [139, 92, 255], [41, 200, 255], [61, 255, 143], [255, 45, 209]];
+const barCol = Array.from({ length: BARS }, (_, i) => {
+  const p = (i / BARS) * (NEON.length - 1), k = Math.floor(p), f = p - k, a = NEON[k], b = NEON[k + 1];
+  return a.map((v, j) => Math.round(v + (b[j] - v) * f)).join(",");
+});
+function sizeViz() {
+  const r = cv.getBoundingClientRect(), dpr = Math.min(devicePixelRatio || 1, innerWidth < 980 ? 1.5 : 2);
+  // measure without the mobile scale so the canvas keeps its own resolution
+  const w = cv.offsetWidth || r.width, h = cv.offsetHeight || r.height;
+  cv.width = Math.max(1, w * dpr); cv.height = Math.max(1, h * dpr);
+}
+new ResizeObserver(sizeViz).observe(cv);
+function drawSpikes() {
+  const w = cv.width, h = cv.height, cx = w / 2, cy = h / 2;
+  g2.clearRect(0, 0, w, h);
+  g2.globalCompositeOperation = "lighter";
+  g2.lineCap = "round";
+  const r0 = w * 0.385, maxLen = w * 0.1, lw = Math.max(1.2, w / 300);
+  for (let i = 0; i < BARS; i++) {
+    const bin = freq ? freq[2 + Math.floor((i < BARS / 2 ? i : BARS - i) * 1.6)] / 255 : 0;
+    const v = playing ? bin : 0.05;
+    const len = maxLen * (0.06 + v * v * 1.15);
+    const th = (i / BARS) * Math.PI * 2 - Math.PI / 2 + angle * Math.PI / 1800;
+    const c = Math.cos(th), s = Math.sin(th);
+    const x1 = cx + c * r0, y1 = cy + s * r0, x2 = cx + c * (r0 + len), y2 = cy + s * (r0 + len);
+    const glow = 0.35 + v * 0.65;
+    g2.strokeStyle = `rgba(${barCol[i]},${0.16 * glow})`; g2.lineWidth = lw * 5;   // halo
+    g2.beginPath(); g2.moveTo(x1, y1); g2.lineTo(x2, y2); g2.stroke();
+    g2.strokeStyle = `rgba(${barCol[i]},${0.85 * glow})`; g2.lineWidth = lw * 1.8; // tube
+    g2.stroke();
+    g2.strokeStyle = `rgba(255,255,255,${0.7 * glow * v + 0.05})`; g2.lineWidth = lw * 0.6; // core
+    g2.stroke();
+  }
+  g2.globalCompositeOperation = "source-over";
+}
+
+/* =========================================================
+   MAIN LOOP
+   ========================================================= */
+let prev = performance.now(), lastBass = -1, spikeTick = false;
+function frame(now) {
+  const dt = Math.min(0.05, (now - prev) / 1000); prev = now;
+  const target = playing ? BASE * speed : 0;
+
+  if (holding && (engaged || now - downAt > 140)) {
+    const dragVel = dragAccum / dt; dragAccum = 0;
+    motor += (dragVel - motor) * Math.min(1, dt * 22);
+    angle += motor * dt;
+  } else {
+    if (holding) dragAccum = 0;
+    motor += impulse; impulse = 0;
+    motor += (target - motor) * Math.min(1, dt * (playing ? 2.6 : 1.4));   // spin-up / slow-down
+    spinExtra *= Math.pow(0.04, dt);
+    angle += (motor + (reduceMotion ? 0 : spinExtra)) * dt;
+  }
+  vinyl.style.transform = `rotate(${angle % 360}deg)`;   // only the record spins; the gold rim stays still
+  if (!isPhone || (spikeTick = !spikeTick)) drawSpikes();   // 30fps on phones
+
+  if (ctx && playing) {
+    const t = ctx.currentTime;
+    const rel = motor / BASE;
+    const rate = Math.max(0.0625, Math.min(3, Math.abs(rel)));
+    if (Math.abs(rate - lastRate) > 0.01) { audio.playbackRate = rate; lastRate = rate; }
+    brake.gain.setTargetAtTime(Math.min(1, Math.sqrt(Math.abs(rel))) * (rel < 0 ? 0.35 : 1), t, 0.02);
+    const scratching = holding && engaged;
+    const sg = scratching ? Math.min(0.5, Math.abs(motor - BASE) / 900) : 0;
+    scratchGain.gain.setTargetAtTime(sg, t, 0.015);
+    scratchBP.frequency.setTargetAtTime(500 + Math.abs(motor) * 3.2, t, 0.02);
+    vinyl.setAttribute("aria-valuenow", Math.round(rate * 100));
+  }
+
+  let level = 0;
+  if (analyser && playing) {
+    analyser.getByteFrequencyData(freq);
+    for (let i = 1; i < 7; i++) level += freq[i]; level /= 6 * 255;
+    eqBars.forEach((b, i) => (b.style.transform = `scaleY(${(0.2 + (freq[4 + i * 12] / 255) * 0.8).toFixed(2)})`));
+  }
+  const bassV = (level * level * 1.4).toFixed(3);
+  if (Math.abs(bassV - lastBass) > 0.02) { lastBass = bassV; document.documentElement.style.setProperty("--bass", bassV); }
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+
+/* =========================================================
+   AIR HORN BUTTON
+   ========================================================= */
+const horn = $("padHorn");
+async function fireHorn() {
+  unlockSilentSwitch();
+  initGraph();
+  if (ctx.state === "suspended") { try { await ctx.resume(); } catch (e) {} }
+  await loadHorn();
+  airHorn();
+  horn.classList.add("hit"); setTimeout(() => horn.classList.remove("hit"), 220);
+}
+horn.addEventListener("pointerdown", (e) => { e.preventDefault(); fireHorn(); });
+horn.addEventListener("click", (e) => { if (e.detail === 0) fireHorn(); });   // keyboard
+
+/* =========================================================
+   PHONES: mark the record as stuck once it's pinned at the top
+   ========================================================= */
+const slot = $("deckSlot");
+const mobile = matchMedia("(max-width: 979px)");
+function checkStuck() {
+  const r = slot.getBoundingClientRect();
+  deck.classList.toggle("stuck", mobile.matches && r.top <= -r.height / 2 + 1);
+}
+let morphQueued = false;
+function morphDeck() {
+  morphQueued = false;
+  if (!mobile.matches) { deck.style.transform = ""; return; }
+  const D = slot.offsetHeight;                              // record diameter
+  const p = Math.min(1, Math.max(0, scrollY / (D / 2 + 40)));
+  const e = p * p * (3 - 2 * p);                            // smooth ease
+  const vw = document.documentElement.clientWidth;
+  const FINAL_WIDTH = 0.8;   // record ends up 80% of the screen width
+  const SHOWING = 0.3;       // ...with 30% of it peeking down from the top
+  // capped by screen height (phones held sideways) and an overall max (tablets)
+  const target = Math.min(vw * FINAL_WIDTH, innerHeight * 0.75, 520);
+  const scale = 1 + (target / D - 1) * e;
+  const dx = (vw / 2 - (slot.getBoundingClientRect().left + D / 2)) * e;   // slides to center
+  const dy = -(0.5 - SHOWING) * target * e;                                 // tucks up higher
+  deck.style.transformOrigin = `${D / 2}px ${D / 2}px`;
+  deck.style.transform = `translate(${dx}px, ${dy}px) scale(${scale})`;
+}
+const queueMorph = () => { if (!morphQueued) { morphQueued = true; requestAnimationFrame(morphDeck); } };
+addEventListener("scroll", () => { checkStuck(); queueMorph(); }, { passive: true });
+addEventListener("resize", queueMorph);
+mobile.addEventListener("change", () => { checkStuck(); queueMorph(); });
+queueMorph();
+
+/* =========================================================
+   NEXT EVENT (placeholder until Instagram is connected)
+   ========================================================= */
+// sets one unit (two tubes); a changed digit flickers like a real Nixie tube
+function setUnit(k, val) {
+  val = String(val).padStart(2, "0").slice(-2);
+  for (let i = 0; i < 2; i++) {
+    const el = $("cd" + k + i);
+    if (el.textContent !== val[i]) { el.textContent = val[i]; el.classList.remove("flick"); void el.offsetWidth; el.classList.add("flick"); }
+  }
+}
+let eventStart = PLACEHOLDER_EVENT_START;   // replaced by the real start time once Instagram + Claude answer
+function countdown() {
+  const ms = new Date(eventStart) - Date.now();
+  if (ms <= 0) {
+    if (ms > -5 * 3600e3) { $("cdHead").innerHTML = "<b>Happening now.</b> Pull up."; ["D","H","M","S"].forEach((k) => setUnit(k, 0)); }
+    else $("cd").hidden = true;
+    return;
+  }
+  const sec = Math.floor(ms / 1000);
+  const d = Math.floor(sec / 86400), h = Math.floor(sec / 3600) % 24, m = Math.floor(sec / 60) % 60, s2 = sec % 60;
+  setUnit("D", Math.min(d, 99)); setUnit("H", h); setUnit("M", m); setUnit("S", s2);
+}
+// Whole caption as text, with any links in it made tappable (built safely, no HTML from Instagram)
+function setCaption(el, text) {
+  el.textContent = "";
+  const re = /\bhttps?:\/\/[^\s)]+|\b(?:www\.)?[a-z0-9-]+(?:\.[a-z0-9-]+)*\.(?:com|net|org|vip|co|io|events?|tickets?|link|me|us|app)(?:\/[^\s)]*)?/gi;
+  let last = 0, m;
+  while ((m = re.exec(text))) {
+    const raw = m[0].replace(/[.,!?]+$/, "");
+    el.append(text.slice(last, m.index));
+    const a = document.createElement("a");
+    a.href = /^https?:\/\//i.test(raw) ? raw : "https://" + raw;
+    a.target = "_blank"; a.rel = "noopener"; a.textContent = raw;
+    el.append(a);
+    last = m.index + raw.length;
+  }
+  el.append(text.slice(last));
+}
+function fillEventDetails(d) {
+  const day = new Date(d.date + "T12:00:00");
+  $("evDay").textContent = day.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+  $("evWeekday").textContent = day.toLocaleDateString("en-US", { weekday: "long" });
+  const title = $("evTitle"); title.textContent = d.title || "Next event";
+  if (d.subtitle) { const sm = document.createElement("small"); sm.textContent = d.subtitle; title.append(sm); }
+  const fmt = (t) => { let [h, m] = t.split(":").map(Number); const ap = h >= 12 ? "PM" : "AM"; h = h % 12 || 12; return { t: m ? `${h}:${String(m).padStart(2, "0")}` : `${h}`, ap }; };
+  let when = "";
+  if (d.start) {
+    const a = fmt(d.start);
+    if (d.end) { const b = fmt(d.end); when = a.ap === b.ap ? `${a.t} to ${b.t} ${b.ap}` : `${a.t} ${a.ap} to ${b.t} ${b.ap}`; }
+    else when = `${a.t} ${a.ap}`;
+  }
+  const where = [d.venue, d.address].filter(Boolean).join(", ");
+  const rows = $("evMeta").children;          // [time row, place row], icons stay
+  const setRow = (row, text) => { if (!text) { row.hidden = true; return; } row.lastChild.textContent = text; row.hidden = false; };
+  setRow(rows[0], when); setRow(rows[1], where);
+  // short description Claude wrote from the flyer and caption
+  const cap = $("evCaption");
+  if (d.description) { cap.textContent = d.description; cap.hidden = false; } else cap.hidden = true;
+}
+async function loadNextEvent() {
+  if (!NEXT_EVENT_API) { countdown(); setInterval(countdown, 1000); return; }
+  try {
+    let res;
+    for (let tries = 0; tries < 4; tries++) {                   // first visits: Claude is still reading posts, retry
+      res = await fetch(NEXT_EVENT_API, { cache: "no-store" });
+      if (res.status !== 503) break;
+      if (tries === 0) { countdown(); window.__cdTimer = setInterval(countdown, 1000); }   // show placeholder meanwhile
+      await new Promise((r) => setTimeout(r, 6000));
+    }
+    if (!res.ok) throw new Error("Next event unavailable");      // not deployed yet or Instagram error: keep the placeholder
+    clearInterval(window.__cdTimer);
+    const { event, countdown: big } = await res.json();
+    if (!event) { $("event").closest("section").hidden = true; return; }
+    $("evImg").src = event.image; $("evImg").alt = (event.details && event.details.title ? event.details.title + " flyer" : "Next event flyer");
+    $("evFlyerLink").href = event.permalink; $("evMore").href = event.permalink;   // Learn more opens the Instagram post
+    // Get tickets: the link written in the caption, otherwise ONE Link
+    $("evTickets").href = event.ticketUrl || "https://www.onelinkentertainment.com";
+    const d = event.details;
+    if (d && d.date) {
+      // Claude read the flyer: fill the full card and run the countdown to the real start time
+      fillEventDetails(d);
+    } else {
+      // no details: show the whole caption instead
+      ["evDate", "evTitle", "evMeta", "cd"].forEach((id) => ($(id).hidden = true));
+      setCaption($("evCaption"), event.caption); $("evCaption").hidden = false;
+    }
+    // Countdown only for big events (Claude decides). It may be a later event than the card.
+    if (big && big.startISO) {
+      eventStart = big.startISO;
+      $("cdHead").textContent = big.sameAsCard ? "Starts in" : `${big.title || "Next big event"} starts in`;
+      $("cd").hidden = false; countdown(); setInterval(countdown, 1000);
+    } else $("cd").hidden = true;
+  } catch (e) { countdown(); setInterval(countdown, 1000); }
+}
+loadNextEvent();
+
+
+/* =========================================================
+   BACKGROUND: gradient blobs + light leaks
+   ========================================================= */
+const bg = $("bg");
+const blobs = [
+  // top, left, size, color 1, color 2, angle, depth, morph seconds
+  ["-12vh", "-18vw", "62vmax", "#e0a526", "#ff2d95", "135deg", .12, 24],
+  ["38vh",  "55vw",  "56vmax", "#29c8ff", "#ff2d95", "200deg", .28, 19],
+  ["105vh", "-14vw", "52vmax", "#3dff8f", "#29c8ff", "160deg", .2,  27],
+  ["165vh", "50vw",  "60vmax", "#ffcf5a", "#ff5a3c", "120deg", .34, 21],
+  ["235vh", "-6vw",  "56vmax", "#ff2d95", "#7a4dff", "150deg", .22, 25],
+  ["305vh", "48vw",  "52vmax", "#e0a526", "#3dff8f", "180deg", .3,  23],
+];
+blobs.forEach(([t, l, sz, c1, c2, ang, d, m], i) => {
+  if (isPhone && (i === 2 || i === 5)) return;   // phones: 4 blobs instead of 6
+  const el = document.createElement("i");
+  el.className = "blob";
+  const shapes = ["42% 58% 63% 37% / 41% 44% 56% 59%", "63% 37% 38% 62% / 58% 63% 37% 42%", "35% 65% 55% 45% / 62% 36% 64% 38%", "55% 45% 33% 67% / 38% 59% 41% 62%"];
+  el.style.cssText = `--t:${t};--l:${l};--s:${sz};--c1:${c1};--c2:${c2};--a:${ang};--d:${d};--m:${m}s;--r:${i % 2 ? .015 : -.02};--br:${shapes[i % 4]};animation-delay:-${i * 4}s`;
+  bg.appendChild(el);
+});
+const leaks = (isPhone ? ["l", "r", "b"] : ["l", "band", "r", "b"]).map((k) => {
+  const el = document.createElement("i"); el.className = "leak " + k; bg.appendChild(el); return el;
+});
+const phases = [0, 1.7, 3.1, 4.6];
+let syQueued = false;
+function updateLayers() {
+  syQueued = false;
+  const y = scrollY;
+  bg.style.setProperty("--sy", y.toFixed(1));
+  bg.style.setProperty("--sw", Math.sin(y / 700).toFixed(4));
+  leaks.forEach((el, i) => {
+    // each leak swells and fades at its own point in the scroll
+    const o = 0.08 + 0.6 * Math.max(0, Math.sin(y / 650 + phases[i])) ** 2;
+    el.style.setProperty("--o", o.toFixed(3));
+  });
+}
+addEventListener("scroll", () => { if (!syQueued) { syQueued = true; requestAnimationFrame(updateLayers); } }, { passive: true });
+updateLayers();
+
+/* =========================================================
+   PARTICLE WAVES: dot waves placed down the page
+   "wave"   = 3D field of dots rolling like water
+   "matrix" = flat dot grid with ripples moving through it
+   ========================================================= */
+const wv = document.createElement("canvas");
+wv.style.cssText = "position:absolute;inset:0;width:100%;height:100%;opacity:.9" + (innerWidth >= 980 ? ";filter:blur(1.1px)" : "");
+bg.appendChild(wv);
+const wx = wv.getContext("2d");
+let WW = 0, WH = 0, WDPR = 1;
+function sizeWaves() {
+  WDPR = innerWidth < 980 ? 1 : Math.min(devicePixelRatio || 1, 1.5);
+  WW = innerWidth; WH = innerHeight;
+  wv.width = WW * WDPR; wv.height = WH * WDPR;
+}
+sizeWaves(); addEventListener("resize", sizeWaves);
+
+const hex = (h) => [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16));
+const docY = (sel, f = 0) => { const el = document.querySelector(sel); if (!el) return -1e5; const r = el.getBoundingClientRect(); return r.top + scrollY + r.height * f; };
+const bands = [
+  { type: "wave",   at: () => innerHeight * 0.8,       h: 300, c1: hex("#c9a7ff"), c2: hex("#7a4dff"), speed: 1,  angle: -0.21, seed: 0, alpha: .65 },
+  { type: "matrix", at: () => docY(".links", 0.55),    h: 300, c1: hex("#ff2d95"), c2: hex("#29c8ff"), speed: 1,  angle: 0.17,  seed: 3 },
+  { type: "wave",   at: () => docY("footer", 0.2),     h: 320, c1: hex("#3dff8f"), c2: hex("#29c8ff"), speed: .8, angle: 0.14,  seed: 5 },
+];
+
+function lerpC(a, b, k) { return `rgb(${(a[0] + (b[0] - a[0]) * k) | 0},${(a[1] + (b[1] - a[1]) * k) | 0},${(a[2] + (b[2] - a[2]) * k) | 0})`; }
+
+// smooth pseudo-noise from layered sines: gives uneven, organic shapes
+function nz(x, y, t) {
+  return Math.sin(x * 1.7 + t * 0.6 + Math.sin(y * 1.3 + t * 0.2) * 1.4) * 0.5
+       + Math.sin(y * 2.3 - t * 0.45 + Math.sin(x * 2.9) * 0.8) * 0.3
+       + Math.sin((x + y) * 4.1 + t * 0.9) * 0.2;
+}
+const TAU = Math.PI * 2;
+function dot(x, y, r) { wx.beginPath(); wx.arc(x, y, r, 0, TAU); wx.fill(); }
+
+function drawWave(b, cy, t) {
+  const C = WW < 600 ? 40 : 84, R = WW < 600 ? 16 : 22, H = b.h, amp = b.h * 0.16;
+  const cos = Math.cos(b.angle), sin = Math.sin(b.angle), cx = WW / 2;
+  for (let j = 0; j < R; j++) {
+    const z = j / (R - 1), p = 0.3 + 0.7 * z;                    // p: closeness to the viewer
+    for (let i = 0; i < C; i++) {
+      const x = (i / (C - 1)) * 2 - 1;
+      // ribbon: the whole sheet bends, then rolls
+      const bend = Math.sin(x * 1.6 + t * 0.18 + b.seed) * H * 0.28;
+      const roll = nz(x * 1.4 + b.seed, z * 1.8, t * b.speed) * amp * (0.5 + p);
+      let px = x * WW * 0.66 * (0.6 + 0.4 * p);
+      let py = (z - 0.5) * H * 0.9 + bend + roll;
+      const sx = cx + px * cos - py * sin, sy = cy + px * sin + py * cos;
+      // soft oval falloff plus patchy dissolve, so it fades out instead of ending
+      const oval = 1 - Math.min(1, x * x * 0.95 + ((z - 0.55) * 1.9) ** 2);
+      const patch = Math.max(0, 0.6 + 0.5 * nz(x * 3.2 + 7, z * 3.4 - b.seed, t * 0.25));
+      const a = oval * oval * patch * (0.15 + 0.85 * p);
+      if (a < 0.02) continue;
+      wx.globalAlpha = Math.min(1, a * 1.6 * (b.alpha || 1));
+      wx.fillStyle = lerpC(b.c1, b.c2, (x + 1) / 2);
+      dot(sx, sy, 0.7 + 1.9 * p);
+      // a few big out-of-focus dots up front for depth
+      if (p > 0.88 && (i + j * 7) % 9 === 0) { wx.globalAlpha = a * 0.12 * (b.alpha || 1); dot(sx, sy, 7 + 6 * p); }
+    }
+  }
+}
+function drawMatrix(b, cy, t) {
+  const gap = WW < 600 ? 15 : 15, H = b.h, Wd = WW * 1.1;
+  const cols = Math.ceil(Wd / gap), rows = Math.ceil(H / gap);
+  const cos = Math.cos(b.angle), sin = Math.sin(b.angle), cx = WW / 2;
+  // two drifting sources whose ripples overlap
+  const s1x = Math.sin(t * 0.21) * Wd * 0.3, s1y = Math.cos(t * 0.17) * H * 0.3;
+  const s2x = Math.cos(t * 0.13 + 2) * Wd * 0.35, s2y = Math.sin(t * 0.19 + 1) * H * 0.35;
+  for (let r = 0; r < rows; r++) {
+    const ly = -H / 2 + r * gap;
+    for (let c = 0; c < cols; c++) {
+      const lx = -Wd / 2 + c * gap;
+      const nx = lx / (Wd / 2), ny = ly / (H / 2);
+      const edge = 1 - Math.min(1, nx * nx * 0.9 + ny * ny + nz(nx * 2, ny * 2, t * 0.2) * 0.25);
+      if (edge <= 0) continue;
+      const d1 = Math.hypot(lx - s1x, (ly - s1y) * 1.5), d2 = Math.hypot(lx - s2x, (ly - s2y) * 1.5);
+      const v = ((Math.sin(d1 * 0.03 - t * 2) + Math.sin(d2 * 0.026 - t * 1.6)) / 2 + 1) / 2;
+      const wob = nz(nx * 3, ny * 3, t * 0.4) * gap * 0.35;      // dots drift off the strict grid
+      const sx = cx + (lx + wob) * cos - (ly - wob) * sin, sy = cy + (lx + wob) * sin + (ly - wob) * cos;
+      const a = Math.min(1, edge * edge * (0.08 + v * v * 1));
+      if (a < 0.02) continue;
+      wx.globalAlpha = a;
+      wx.fillStyle = lerpC(b.c1, b.c2, (nx + 1) / 2);
+      dot(sx, sy, 0.6 + v * v * 2.1);
+    }
+  }
+}
+
+let wt = 0, wPrev = performance.now(), waveSkip = false;
+function wavesFrame(now) {
+  requestAnimationFrame(wavesFrame);
+  if (isPhone && (waveSkip = !waveSkip)) return;               // 30fps on phones
+  const dt = Math.min(0.1, (now - wPrev) / 1000); wPrev = now;
+  if (!reduceMotion) wt += dt;
+  wx.setTransform(WDPR, 0, 0, WDPR, 0, 0);
+  wx.clearRect(0, 0, WW, WH);
+  for (const b of bands) {
+    const cy = b.at() - scrollY;
+    if (cy < -b.h * 1.2 || cy > WH + b.h * 1.2) continue;                  // only draw what's on screen
+    const t = wt + scrollY * 0.002;                             // scrolling nudges the wave along
+    b.type === "wave" ? drawWave(b, cy, t) : drawMatrix(b, cy, t);
+  }
+  wx.globalAlpha = 1;
+}
+requestAnimationFrame(wavesFrame);
+
+})();
+</script>
+</body>
+</html>
